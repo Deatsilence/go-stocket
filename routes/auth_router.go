@@ -1,7 +1,7 @@
 package routes
 
 import (
-	controller "github/Deatsilence/go-stocket/controllers"
+	controller "github.com/Deatsilence/go-stocket/pkg/controllers"
 
 	"github.com/gin-gonic/gin"
 )

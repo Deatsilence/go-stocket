@@ -44,6 +44,7 @@ func VerifyPassword(userPassword string, providedPassword string) (bool, string)
 
 func SignUp() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		var user models.User
 
 		if err := c.BindJSON(&user); err != nil {
@@ -51,15 +52,10 @@ func SignUp() gin.HandlerFunc {
 			return
 		}
 
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-
 		validationErr := validate.Struct(user)
 		if validationErr != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
 		}
-
-		password := HashPassword(*user.Password)
-		user.Password = &password
 
 		count, err := userCollection.CountDocuments(ctx, bson.M{"email": user.Email})
 		defer cancel()
@@ -73,6 +69,9 @@ func SignUp() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Email already exists"})
 			return
 
+		} else {
+			password := HashPassword(*user.Password)
+			user.Password = &password
 		}
 
 		user.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
@@ -127,7 +126,7 @@ func Login() gin.HandlerFunc {
 		}
 		token, refreshToken, _ := helper.GenerateAllTokens(*foundUser.Email, *foundUser.Name, *foundUser.Surname, *foundUser.UserType, *&foundUser.UserID)
 		helper.UpdateAllTokens(token, refreshToken, foundUser.UserID)
-		err = userCollection.FindOne(ctx, bson.M{"userId": foundUser.UserID}).Decode(&foundUser)
+		err = userCollection.FindOne(ctx, bson.M{"userid": foundUser.UserID}).Decode(&foundUser)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -191,7 +190,7 @@ func GetUsers() gin.HandlerFunc {
 
 func GetUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userId := c.Param("userId")
+		userId := c.Param("userid")
 
 		if err := helper.MatchUserTypeToUid(c, userId); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -200,7 +199,7 @@ func GetUser() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 
 		var user models.User
-		err := userCollection.FindOne(ctx, bson.M{"userId": userId}).Decode(&user)
+		err := userCollection.FindOne(ctx, bson.M{"userid": userId}).Decode(&user)
 		defer cancel()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "User not found"})

@@ -9,7 +9,7 @@ import (
 
 func Authenticate() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		clientToken := c.Request.Header.Get("token ")
+		clientToken := c.Request.Header.Get("token")
 
 		if clientToken == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "No Authorization header provided"})
@@ -25,8 +25,8 @@ func Authenticate() gin.HandlerFunc {
 		c.Set("email", claims.Email)
 		c.Set("name", claims.Name)
 		c.Set("surname", claims.Surname)
-		c.Set("userType", claims.UserType)
-		c.Set("uid", claims.UserId)
+		c.Set("usertype", claims.UserType)
+		c.Set("userid", claims.UserId)
 		c.Next()
 	}
 }

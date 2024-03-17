@@ -20,7 +20,7 @@ import (
 )
 
 var userCollection *mongo.Collection = database.OpenCollection(database.Client, "user")
-var validate = validator.New()
+var validateUser = validator.New()
 
 func HashPassword(password string) string {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 14)
@@ -52,7 +52,7 @@ func SignUp() gin.HandlerFunc {
 			return
 		}
 
-		validationErr := validate.Struct(user)
+		validationErr := validateUser.Struct(user)
 		if validationErr != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
 		}

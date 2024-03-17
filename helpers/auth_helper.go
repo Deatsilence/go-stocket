@@ -19,7 +19,7 @@ func CheckUserType(c *gin.Context, role string) (err error) {
 
 func MatchUserTypeToUid(c *gin.Context, userId string) (err error) {
 	userType := c.GetString("usertype")
-	uid := c.GetString("uid")
+	uid := c.GetString("userid")
 
 	err = nil
 

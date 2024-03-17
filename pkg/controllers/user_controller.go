@@ -20,7 +20,7 @@ import (
 )
 
 var userCollection *mongo.Collection = database.OpenCollection(database.Client, "user")
-var validate = validator.New()
+var validateUser = validator.New()
 
 func HashPassword(password string) string {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 14)
@@ -45,6 +45,8 @@ func VerifyPassword(userPassword string, providedPassword string) (bool, string)
 func SignUp() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
 		var user models.User
 
 		if err := c.BindJSON(&user); err != nil {
@@ -52,13 +54,12 @@ func SignUp() gin.HandlerFunc {
 			return
 		}
 
-		validationErr := validate.Struct(user)
+		validationErr := validateUser.Struct(user)
 		if validationErr != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
 		}
 
 		count, err := userCollection.CountDocuments(ctx, bson.M{"email": user.Email})
-		defer cancel()
 
 		if err != nil {
 			log.Panic(err)
@@ -96,6 +97,8 @@ func SignUp() gin.HandlerFunc {
 func Login() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
 		var user models.User
 		var foundUser models.User
 
@@ -113,7 +116,6 @@ func Login() gin.HandlerFunc {
 		}
 
 		passwordIsValid, msg := VerifyPassword(*user.Password, *foundUser.Password)
-		defer cancel()
 
 		if !passwordIsValid {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
@@ -124,7 +126,7 @@ func Login() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "User not found"})
 			return
 		}
-		token, refreshToken, _ := helper.GenerateAllTokens(*foundUser.Email, *foundUser.Name, *foundUser.Surname, *foundUser.UserType, *&foundUser.UserID)
+		token, refreshToken, _ := helper.GenerateAllTokens(*foundUser.Email, *foundUser.Name, *foundUser.Surname, *foundUser.UserType, foundUser.UserID)
 		helper.UpdateAllTokens(token, refreshToken, foundUser.UserID)
 		err = userCollection.FindOne(ctx, bson.M{"userid": foundUser.UserID}).Decode(&foundUser)
 
@@ -139,24 +141,26 @@ func Login() gin.HandlerFunc {
 
 func GetUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
 		if err := helper.CheckUserType(c, "ADMIN"); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		recordPerPage, err := strconv.Atoi(c.Query("recordPerPage"))
+		recordPerPage, recordPageErr := strconv.Atoi(c.Query("recordPerPage"))
 
-		if err != nil || recordPerPage < 1 {
+		if recordPageErr != nil || recordPerPage < 1 {
 			recordPerPage = 10
 		}
 
-		page, secondErr := strconv.Atoi(c.Query("page"))
-		if secondErr != nil || page < 1 {
+		page, pageErr := strconv.Atoi(c.Query("page"))
+
+		if pageErr != nil || page < 1 {
 			page = 1
 		}
 
 		startIndex := (page - 1) * recordPerPage
-		startIndex, err = strconv.Atoi(c.Query("startIndex"))
 
 		matchStage := bson.D{{Key: "$match", Value: bson.D{{}}}}
 		groupStage := bson.D{{Key: "$group", Value: bson.D{
@@ -173,8 +177,6 @@ func GetUsers() gin.HandlerFunc {
 			matchStage, groupStage, projectStage,
 		})
 
-		defer cancel()
-
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured while paginating users"})
 		}
@@ -190,17 +192,18 @@ func GetUsers() gin.HandlerFunc {
 
 func GetUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
 		userId := c.Param("userid")
 
 		if err := helper.MatchUserTypeToUid(c, userId); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 
 		var user models.User
 		err := userCollection.FindOne(ctx, bson.M{"userid": userId}).Decode(&user)
-		defer cancel()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "User not found"})
 			return

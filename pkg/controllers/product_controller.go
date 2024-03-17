@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Deatsilence/go-stocket/database"
@@ -24,6 +25,8 @@ var validateProduct = validator.New()
 func AddAProduct() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
 		var product models.Product
 
 		if err := c.BindJSON(&product); err != nil {
@@ -36,7 +39,6 @@ func AddAProduct() gin.HandlerFunc {
 		}
 
 		count, err := productCollection.CountDocuments(ctx, bson.M{"barcode": product.Barcode})
-		defer cancel()
 
 		if err != nil {
 			log.Panic(err)
@@ -59,9 +61,56 @@ func AddAProduct() gin.HandlerFunc {
 			return
 		}
 		userID := c.GetString("userid")
-		helper.CreateTransactionForProduct(*&userID, *&product.ProductID, types.Add, product.Stock)
+		helper.CreateTransactionForProduct(userID, product.ProductID, types.Add, product.Stock)
 
 		defer cancel()
 		c.JSON(http.StatusOK, resultInsertionNumber)
+	}
+}
+
+func GetProducts() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		recordPerPage, recordPageErr := strconv.Atoi(c.Query("recordPerPage"))
+
+		if recordPageErr != nil && recordPerPage < 1 {
+			recordPerPage = 10
+		}
+
+		page, pageErr := strconv.Atoi(c.Query("page"))
+
+		if pageErr != nil && page < 1 {
+			page = 1
+		}
+
+		startIndex := (page - 1) * recordPerPage
+
+		matchStage := bson.D{{Key: "$match", Value: bson.D{{}}}}
+		groupStage := bson.D{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: bson.D{{Key: "_id", Value: "null"}}},
+			{Key: "total_count", Value: bson.D{{Key: "$sum", Value: 1}}},
+			{Key: "data", Value: bson.D{{Key: "$push", Value: "$$ROOT"}}},
+		}}}
+		projectStage := bson.D{{Key: "$project", Value: bson.D{
+			{Key: "_id", Value: 0},
+			{Key: "total_count", Value: 1},
+			{Key: "product_items", Value: bson.D{{Key: "$slice", Value: []interface{}{"$data", startIndex, recordPerPage}}}},
+		}}}
+		result, err := productCollection.Aggregate(ctx, mongo.Pipeline{
+			matchStage, groupStage, projectStage,
+		})
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured while paginating products"})
+		}
+
+		var allProducts []bson.M
+
+		if err = result.All(ctx, &allProducts); err != nil {
+			log.Fatal(err)
+		}
+		c.JSON(http.StatusOK, allProducts[0])
 	}
 }

@@ -68,6 +68,28 @@ func AddAProduct() gin.HandlerFunc {
 	}
 }
 
+func DeleteAProduct() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		productID := c.Param("productid")
+
+		var product models.Product
+
+		err := productCollection.FindOneAndDelete(ctx, bson.M{"productid": productID}).Decode(&product)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured while deleting product"})
+			return
+		}
+		userID := c.GetString("userid")
+		helper.CreateTransactionForProduct(userID, product.ProductID, types.Delete, product.Stock)
+
+		c.JSON(http.StatusOK, gin.H{"message": "Product deleted successfully"})
+	}
+}
+
 func GetProducts() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
@@ -112,5 +134,98 @@ func GetProducts() gin.HandlerFunc {
 			log.Fatal(err)
 		}
 		c.JSON(http.StatusOK, allProducts[0])
+	}
+}
+
+func GetProduct() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		productID := c.Param("productid")
+
+		var product models.Product
+
+		err := productCollection.FindOne(ctx, bson.M{"productid": productID}).Decode(&product)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Product not found"})
+			return
+		}
+		c.JSON(http.StatusOK, product)
+	}
+}
+
+func UpdateAProduct() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		productID := c.Param("productid")
+
+		var product models.Product
+
+		if err := c.BindJSON(&product); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		validationErr := validateProduct.Struct(product)
+		if validationErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
+		}
+
+		product.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+
+		update := bson.M{
+			"$set": bson.M{
+				"name":        product.Name,
+				"barcode":     product.Barcode,
+				"description": product.Description,
+				"stock":       product.Stock,
+				"price":       product.Price,
+				"updatedat":   product.UpdatedAt,
+			},
+		}
+
+		_, err := productCollection.UpdateOne(ctx, bson.M{"productid": productID}, update)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured while updating product"})
+			return
+		}
+		userID := c.GetString("userid")
+		helper.CreateTransactionForProduct(userID, product.ProductID, types.Update, product.Stock)
+
+		c.JSON(http.StatusOK, gin.H{"message": "Product updated successfully"})
+	}
+}
+
+func UpdateSomePropertiesOfProduct() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		productID := c.Param("productid")
+
+		var product models.Product
+
+		if err := c.BindJSON(&product); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		update := helper.UpdateFilter(product)
+
+		updated := bson.M{"$set": update}
+
+		_, err := productCollection.UpdateOne(ctx, bson.M{"productid": productID}, updated)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured while updating product"})
+			return
+		}
+		userID := c.GetString("userid")
+		helper.CreateTransactionForProduct(userID, productID, types.Update, product.Stock)
+
+		c.JSON(http.StatusOK, gin.H{"message": "Product updated partially successfully"})
 	}
 }

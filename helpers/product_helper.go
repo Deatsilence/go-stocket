@@ -9,6 +9,7 @@ import (
 	"github.com/Deatsilence/go-stocket/database"
 	"github.com/Deatsilence/go-stocket/pkg/models"
 	"github.com/Deatsilence/go-stocket/types"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -17,6 +18,8 @@ var transactionCollection *mongo.Collection = database.OpenCollection(database.C
 
 func CreateTransactionForProduct(userID string, productID string, processtype types.ProcessTypes, amount int) (err error) {
 	var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	var transaction models.Transaction
 
 	processTime, err := time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
@@ -37,6 +40,33 @@ func CreateTransactionForProduct(userID string, productID string, processtype ty
 	if insertErr != nil {
 		log.Printf("Error while inserting transaction: %v", insertErr)
 	}
-	defer cancel()
+
 	return insertErr
+}
+
+func UpdateFilter(product models.Product) bson.M {
+	update := bson.M{}
+	if product.Name != nil {
+		update["name"] = product.Name
+		log.Println("Name: ", product.Name)
+	}
+	if product.Barcode != "" {
+		update["barcode"] = product.Barcode
+		log.Println("Barcode: ", product.Barcode)
+	}
+	if product.Description != nil {
+		update["description"] = product.Description
+		log.Println("Description: ", product.Description)
+	}
+	if product.Stock != 0 {
+		update["stock"] = product.Stock
+		log.Println("Stock: ", product.Stock)
+	}
+	if product.Price != 0.0 {
+		update["price"] = product.Price
+		log.Println("Price: ", product.Price)
+	}
+	update["updatedat"], _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+
+	return update
 }

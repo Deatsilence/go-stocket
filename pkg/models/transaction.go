@@ -7,7 +7,7 @@ import (
 )
 
 type Transaction struct {
-	ID            primitive.ObjectID `bson:"_id"`
+	ID            primitive.ObjectID `bson:"_id,omitempty"`
 	UserID        string             `json:"userid"`        /// The user who made the transaction
 	ProductID     string             `json:"productid"`     /// The product that the transaction is made
 	ProcessType   string             `json:"processtype"`   /// The type of the transaction (add, remove, update, delete)

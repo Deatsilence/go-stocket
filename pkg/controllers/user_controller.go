@@ -211,3 +211,22 @@ func GetUser() gin.HandlerFunc {
 		c.JSON(http.StatusOK, user)
 	}
 }
+
+func Logout() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Request.Header.Get("token")
+
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "No token provided"})
+			return
+		}
+
+		if helper.IsTokenBlacklisted(token) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token is already blacklisted"})
+			return
+		}
+
+		helper.BlacklistToken(token)
+		c.JSON(http.StatusOK, gin.H{"message": "Successfully logged out"})
+	}
+}

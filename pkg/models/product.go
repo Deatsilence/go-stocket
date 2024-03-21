@@ -7,7 +7,7 @@ import (
 )
 
 type Product struct {
-	ID          primitive.ObjectID `bson:"_id"`
+	ID          primitive.ObjectID `bson:"_id,omitempty"`
 	Barcode     string             `json:"barcode" validate:"required"`
 	Name        *string            `json:"name" validate:"required,min=2,max=50"`
 	Description *string            `json:"description" validate:"required,min=2,max=100"`

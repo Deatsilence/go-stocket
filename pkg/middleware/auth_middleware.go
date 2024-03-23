@@ -11,8 +11,8 @@ func Authenticate() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		clientToken := c.Request.Header.Get("token")
 
-		if clientToken == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "No Authorization header provided"})
+		if clientToken == "" || helper.IsTokenBlacklisted(clientToken) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized"})
 			c.Abort()
 			return
 		}

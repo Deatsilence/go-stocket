@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Deatsilence/go-stocket/database"
+	"github.com/Deatsilence/go-stocket/pkg/models"
 	jwt "github.com/dgrijalva/jwt-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -25,6 +26,7 @@ type SignedDetails struct {
 }
 
 var userCollection *mongo.Collection = database.OpenCollection(database.Client, "user")
+var blacklistCollection *mongo.Collection = database.OpenCollection(database.Client, "blacklist")
 
 var SECRET_KEY string = os.Getenv("SECRET_KEY")
 
@@ -36,13 +38,13 @@ func GenerateAllTokens(email string, name string, surname string, userType strin
 		UserType: userType,
 		UserId:   userID,
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Local().Add(time.Hour * time.Duration(24)).Unix(),
+			ExpiresAt: time.Now().Local().Add(time.Minute * time.Duration(30)).Unix(),
 		},
 	}
 
 	refreshClaims := &SignedDetails{
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Local().Add(time.Hour * time.Duration(168)).Unix(),
+			ExpiresAt: time.Now().Local().Add(time.Hour * time.Duration(2)).Unix(),
 		},
 	}
 
@@ -50,11 +52,11 @@ func GenerateAllTokens(email string, name string, surname string, userType strin
 	refreshToken, refreshTokenErr := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString([]byte(SECRET_KEY))
 
 	if tokenErr != nil {
-		log.Panic(err)
+		log.Panic(tokenErr)
 		return
 	}
 	if refreshTokenErr != nil {
-		log.Panic(err)
+		log.Panic(refreshTokenErr)
 		return
 	}
 
@@ -113,5 +115,32 @@ func UpdateAllTokens(signedToken string, signedRefreshToken string, userId strin
 	if err != nil {
 		log.Panic(err)
 		return
+	}
+}
+
+func IsTokenBlacklisted(token string) bool {
+	var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+	defer cancel()
+
+	count, err := blacklistCollection.CountDocuments(ctx, bson.M{"token": token})
+	if err != nil {
+		log.Printf("error occured while checking if token is blacklisted: %v", err)
+	}
+	return count > 0
+}
+
+func BlacklistToken(token string) {
+	var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+	defer cancel()
+
+	blacklistedToken := &models.BlacklistedToken{
+		Token:         token,
+		BlacklistedAt: time.Now(),
+	}
+
+	_, err := blacklistCollection.InsertOne(ctx, blacklistedToken)
+
+	if err != nil {
+		log.Printf("error occured while blacklisting token: %v", err)
 	}
 }

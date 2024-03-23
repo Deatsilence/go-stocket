@@ -16,7 +16,7 @@ import (
 
 var transactionCollection *mongo.Collection = database.OpenCollection(database.Client, "transaction")
 
-func CreateTransactionForProduct(userID string, productID string, processtype types.ProcessTypes, amount int) (err error) {
+func CreateTransactionForProduct(userID string, productID string, processtype types.ProcessTypes, amount uint) (err error) {
 	var ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -58,11 +58,11 @@ func UpdateFilter(product models.Product) bson.M {
 		update["description"] = product.Description
 		log.Println("Description: ", product.Description)
 	}
-	if product.Stock != 0 {
-		update["stock"] = product.Stock
-		log.Println("Stock: ", product.Stock)
-	}
-	if product.Price != 0.0 {
+
+	update["stock"] = product.Stock
+	log.Println("Stock: ", product.Stock)
+
+	if product.Price >= 0.0 {
 		update["price"] = product.Price
 		log.Println("Price: ", product.Price)
 	}

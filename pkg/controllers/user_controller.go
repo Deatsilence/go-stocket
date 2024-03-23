@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -16,30 +15,63 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"golang.org/x/crypto/bcrypt"
 )
 
 var userCollection *mongo.Collection = database.OpenCollection(database.Client, "user")
 var validateUser = validator.New()
 
-func HashPassword(password string) string {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 14)
-	if err != nil {
-		log.Panic("Error hashing password")
-	}
-	return string(hashedPassword)
-}
+func VerifyEmail() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 
-func VerifyPassword(userPassword string, providedPassword string) (bool, string) {
-	err := bcrypt.CompareHashAndPassword([]byte(providedPassword), []byte(userPassword))
-	check := true
-	msg := ""
+		var isVerified bool = true
 
-	if err != nil {
-		msg = fmt.Sprintf("Password is incorrect")
-		check = false
+		var requestBody struct {
+			Email *string `json:"email" validate:"required,email"`
+			Code  string  `json:"code"`
+		}
+		if err := c.BindJSON(&requestBody); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Check if the code is valid and update the user's verified status
+		valid, err := helper.ValidateResetCode(*requestBody.Email, requestBody.Code)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			isVerified = false
+		}
+		if !valid {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "expired code"})
+			isVerified = false
+		}
+		if !isVerified {
+			var user models.User
+
+			err = userCollection.FindOneAndDelete(ctx, bson.M{"email": *requestBody.Email}).Decode(&user)
+
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			return
+		}
+
+		update := bson.M{
+			"$set": bson.M{
+				"isverified": true,
+			},
+		}
+
+		_, updateErr := userCollection.UpdateOne(ctx, bson.M{"email": *requestBody.Email}, update)
+		if updateErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": updateErr.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Email successfully verified"})
 	}
-	return check, msg
 }
 
 func SignUp() gin.HandlerFunc {
@@ -67,25 +99,39 @@ func SignUp() gin.HandlerFunc {
 		}
 
 		if count > 0 {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Email already exists"})
-			return
-
-		} else {
-			password := HashPassword(*user.Password)
-			user.Password = &password
+			isVerified, isVerifyErr := helper.DeleteUnverified(*user.Email)
+			log.Printf("email: %v", *user.Email)
+			if isVerifyErr != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": isVerifyErr.Error()})
+				return
+			}
+			if isVerified {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Email already exists"})
+				return
+			}
 		}
+
+		err = helper.GenerateResetCode(*user.Email)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate verify code"})
+			return
+		}
+
+		password := helper.HashPassword(*user.Password)
+		user.Password = &password
 
 		user.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		user.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		user.ID = primitive.NewObjectID()
 		user.UserID = user.ID.Hex()
-		token, refreshToken, _ := helper.GenerateAllTokens(*user.Email, *user.Name, *user.Surname, *user.UserType, *&user.UserID)
+		token, refreshToken, _ := helper.GenerateAllTokens(*user.Email, *user.Name, *user.Surname, *user.UserType, user.UserID)
 		user.Token = &token
 		user.RefreshToken = &refreshToken
+		user.IsVerified = false
 
 		resultInsertionNumber, insertErr := userCollection.InsertOne(ctx, user)
 		if insertErr != nil {
-			msg := fmt.Sprintf("User not created")
+			msg := "User not created"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
@@ -115,7 +161,7 @@ func Login() gin.HandlerFunc {
 			return
 		}
 
-		passwordIsValid, msg := VerifyPassword(*user.Password, *foundUser.Password)
+		passwordIsValid, msg := helper.VerifyPassword(*user.Password, *foundUser.Password)
 
 		if !passwordIsValid {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
@@ -124,6 +170,10 @@ func Login() gin.HandlerFunc {
 
 		if foundUser.Email == nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "User not found"})
+			return
+		}
+		if !foundUser.IsVerified {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Email not verified"})
 			return
 		}
 		token, refreshToken, _ := helper.GenerateAllTokens(*foundUser.Email, *foundUser.Name, *foundUser.Surname, *foundUser.UserType, foundUser.UserID)
@@ -228,5 +278,64 @@ func Logout() gin.HandlerFunc {
 
 		helper.BlacklistToken(token)
 		c.JSON(http.StatusOK, gin.H{"message": "Successfully logged out"})
+	}
+}
+
+func RequestPasswordReset() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		var requestBody struct {
+			Email *string `json:"email" validate:"required,email"`
+		}
+		if err := c.BindJSON(&requestBody); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		count, countErr := userCollection.CountDocuments(ctx, bson.M{"email": *requestBody.Email})
+
+		if countErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured while checking for the email"})
+			return
+		}
+
+		if count == 0 {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Email does not exist"})
+			return
+		}
+
+		// Generate and send a reset code
+		err := helper.GenerateResetCode(*requestBody.Email)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate reset code"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Reset code sent to email"})
+	}
+}
+
+func ResetPassword() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var requestBody struct {
+			Email       *string `json:"email" validate:"required,email"`
+			Code        string  `json:"code" validate:"required,min=6,max=6"`
+			NewPassword string  `json:"newpassword" validate:"required,min=6"`
+		}
+		if err := c.BindJSON(&requestBody); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Reset the password
+		err := helper.ResetUserPassword(*requestBody.Email, requestBody.Code, requestBody.NewPassword)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Password successfully reset"})
 	}
 }

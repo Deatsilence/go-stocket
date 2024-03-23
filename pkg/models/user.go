@@ -15,6 +15,7 @@ type User struct {
 	Token        *string            `json:"token"`
 	UserType     *string            `json:"usertype" validate:"required,eq=ADMIN|eq=USER"`
 	RefreshToken *string            `json:"refreshtoken"`
+	IsVerified   bool               `json:"isverified"`
 	CreatedAt    time.Time          `json:"createdat" `
 	UpdatedAt    time.Time          `json:"updatedat"`
 	UserID       string             `json:"userid"`

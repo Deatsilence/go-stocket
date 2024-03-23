@@ -26,6 +26,7 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger())
 
+	routes.PasswordRoutes(router)
 	routes.AuthRoutes(router)
 	routes.UserRoutes(router)
 	routes.ProductRoutes(router)

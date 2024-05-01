@@ -181,6 +181,7 @@ func UpdateAProduct() gin.HandlerFunc {
 				"name":        product.Name,
 				"barcode":     product.Barcode,
 				"description": product.Description,
+				"category":    product.Category,
 				"stock":       product.Stock,
 				"price":       product.Price,
 				"updatedat":   product.UpdatedAt,

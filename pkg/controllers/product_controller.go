@@ -30,12 +30,16 @@ func AddAProduct() gin.HandlerFunc {
 		var product models.Product
 
 		if err := c.BindJSON(&product); err != nil {
+			log.Println("33 ERROR: ", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+
 		validationErr := validateProduct.Struct(product)
 		if validationErr != nil {
+			log.Println("40 ERROR: ", validationErr)
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
+			return
 		}
 
 		count, err := productCollection.CountDocuments(ctx, bson.M{"barcode": product.Barcode})
@@ -43,6 +47,7 @@ func AddAProduct() gin.HandlerFunc {
 		if err != nil {
 			log.Panic(err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error while checking for product"})
+			return
 		}
 		if count > 0 {
 			c.JSON(http.StatusConflict, gin.H{"error": "Product already exists"})
@@ -53,7 +58,7 @@ func AddAProduct() gin.HandlerFunc {
 		product.ProductID = product.ID.Hex()
 		product.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		product.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-
+		log.Println("Product: ", product)
 		resultInsertionNumber, insertErr := productCollection.InsertOne(ctx, product)
 
 		if insertErr != nil {

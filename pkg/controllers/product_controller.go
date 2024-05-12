@@ -101,44 +101,63 @@ func GetProducts() gin.HandlerFunc {
 		defer cancel()
 
 		recordPerPage, recordPageErr := strconv.Atoi(c.Query("recordPerPage"))
-
-		if recordPageErr != nil && recordPerPage < 1 {
+		if recordPageErr != nil || recordPerPage < 1 {
 			recordPerPage = 10
 		}
 
 		page, pageErr := strconv.Atoi(c.Query("page"))
-
-		if pageErr != nil && page < 1 {
+		if pageErr != nil || page < 1 {
 			page = 1
 		}
 
 		startIndex := (page - 1) * recordPerPage
 
-		matchStage := bson.D{{Key: "$match", Value: bson.D{{}}}}
-		groupStage := bson.D{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: bson.D{{Key: "_id", Value: "null"}}},
-			{Key: "total_count", Value: bson.D{{Key: "$sum", Value: 1}}},
-			{Key: "data", Value: bson.D{{Key: "$push", Value: "$$ROOT"}}},
-		}}}
-		projectStage := bson.D{{Key: "$project", Value: bson.D{
-			{Key: "_id", Value: 0},
-			{Key: "total_count", Value: 1},
-			{Key: "product_items", Value: bson.D{{Key: "$slice", Value: []interface{}{"$data", startIndex, recordPerPage}}}},
-		}}}
-		result, err := productCollection.Aggregate(ctx, mongo.Pipeline{
-			matchStage, groupStage, projectStage,
-		})
+		pipeline := mongo.Pipeline{
+			bson.D{{Key: "$match", Value: bson.D{{}}}}, // Filtre eklenebilir.
+			bson.D{{Key: "$group", Value: bson.D{
+				{Key: "_id", Value: "null"},
+				{Key: "total_count", Value: bson.D{{Key: "$sum", Value: 1}}},
+				{Key: "data", Value: bson.D{{Key: "$push", Value: "$$ROOT"}}},
+			}}},
+			bson.D{{Key: "$project", Value: bson.D{
+				{Key: "_id", Value: 0},
+				{Key: "total_count", Value: 1},
+				{Key: "product_items", Value: bson.D{
+					{Key: "$map", Value: bson.D{
+						{Key: "input", Value: bson.D{{Key: "$slice", Value: []interface{}{"$data", startIndex, recordPerPage}}}},
+						{Key: "as", Value: "item"},
+						{Key: "in", Value: bson.D{
+							{Key: "name", Value: "$$item.name"},
+							{Key: "price", Value: "$$item.price"},
+							{Key: "barcode", Value: "$$item.barcode"},
+							{Key: "stock", Value: "$$item.stock"},
+							{Key: "description", Value: "$$item.description"},
+							{Key: "createdat", Value: "$$item.createdat"},
+							{Key: "updatedat", Value: "$$item.updatedat"},
+							{Key: "category", Value: "$$item.category"}}}, // Diğer alanlar eklenmelidir.
+					}},
+				}}},
+			}}}
+
+		result, err := productCollection.Aggregate(ctx, pipeline)
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occured while paginating products"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error occurred while paginating products"})
+			return
 		}
 
 		var allProducts []bson.M
-
 		if err = result.All(ctx, &allProducts); err != nil {
 			log.Fatal(err)
 		}
-		c.JSON(http.StatusOK, allProducts[0])
+
+		if len(allProducts) > 0 {
+			c.JSON(http.StatusOK, allProducts[0])
+			return
+		} else {
+			c.JSON(http.StatusOK, gin.H{"product_items": []interface{}{}, "total_count": 0})
+			return
+		}
 	}
 }
 

@@ -30,14 +30,12 @@ func AddAProduct() gin.HandlerFunc {
 		var product models.Product
 
 		if err := c.BindJSON(&product); err != nil {
-			log.Println("33 ERROR: ", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
 		validationErr := validateProduct.Struct(product)
 		if validationErr != nil {
-			log.Println("40 ERROR: ", validationErr)
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
 			return
 		}
@@ -58,7 +56,6 @@ func AddAProduct() gin.HandlerFunc {
 		product.ProductID = product.ID.Hex()
 		product.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		product.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		log.Println("Product: ", product)
 		resultInsertionNumber, insertErr := productCollection.InsertOne(ctx, product)
 
 		if insertErr != nil {
@@ -113,16 +110,16 @@ func GetProducts() gin.HandlerFunc {
 		startIndex := (page - 1) * recordPerPage
 
 		pipeline := mongo.Pipeline{
-			bson.D{{Key: "$match", Value: bson.D{{}}}}, // Filtre eklenebilir.
+			bson.D{{Key: "$match", Value: bson.D{{}}}}, // We can add filters here
 			bson.D{{Key: "$group", Value: bson.D{
 				{Key: "_id", Value: "null"},
-				{Key: "total_count", Value: bson.D{{Key: "$sum", Value: 1}}},
+				{Key: "totalCount", Value: bson.D{{Key: "$sum", Value: 1}}},
 				{Key: "data", Value: bson.D{{Key: "$push", Value: "$$ROOT"}}},
 			}}},
 			bson.D{{Key: "$project", Value: bson.D{
 				{Key: "_id", Value: 0},
-				{Key: "total_count", Value: 1},
-				{Key: "product_items", Value: bson.D{
+				{Key: "totalCount", Value: 1},
+				{Key: "productItems", Value: bson.D{
 					{Key: "$map", Value: bson.D{
 						{Key: "input", Value: bson.D{{Key: "$slice", Value: []interface{}{"$data", startIndex, recordPerPage}}}},
 						{Key: "as", Value: "item"},
@@ -134,7 +131,7 @@ func GetProducts() gin.HandlerFunc {
 							{Key: "description", Value: "$$item.description"},
 							{Key: "createdat", Value: "$$item.createdat"},
 							{Key: "updatedat", Value: "$$item.updatedat"},
-							{Key: "category", Value: "$$item.category"}}}, // Diğer alanlar eklenmelidir.
+							{Key: "category", Value: "$$item.category"}}},
 					}},
 				}}},
 			}}}
@@ -155,7 +152,7 @@ func GetProducts() gin.HandlerFunc {
 			c.JSON(http.StatusOK, allProducts[0])
 			return
 		} else {
-			c.JSON(http.StatusOK, gin.H{"product_items": []interface{}{}, "total_count": 0})
+			c.JSON(http.StatusOK, gin.H{"productItems": []interface{}{}, "totalCount": 0})
 			return
 		}
 	}

@@ -124,6 +124,7 @@ func GetProducts() gin.HandlerFunc {
 						{Key: "input", Value: bson.D{{Key: "$slice", Value: []interface{}{"$data", startIndex, recordPerPage}}}},
 						{Key: "as", Value: "item"},
 						{Key: "in", Value: bson.D{
+							{Key: "productid", Value: "$$item.productid"},
 							{Key: "name", Value: "$$item.name"},
 							{Key: "price", Value: "$$item.price"},
 							{Key: "barcode", Value: "$$item.barcode"},

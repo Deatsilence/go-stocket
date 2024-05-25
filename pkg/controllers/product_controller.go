@@ -194,6 +194,7 @@ func UpdateAProduct() gin.HandlerFunc {
 		validationErr := validateProduct.Struct(product)
 		if validationErr != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
+			return
 		}
 
 		product.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))

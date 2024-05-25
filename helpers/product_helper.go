@@ -59,7 +59,7 @@ func UpdateFilter(product models.Product) bson.M {
 		log.Println("Description: ", product.Description)
 	}
 
-	if product.Category >= 0 {
+	if *product.Category >= 0 {
 		update["category"] = product.Category
 		log.Println("Category: ", product.Category)
 	}

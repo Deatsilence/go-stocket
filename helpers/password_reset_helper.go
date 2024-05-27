@@ -59,7 +59,6 @@ func ValidateResetCode(email string, code string) (bool, error) {
 	if err != nil {
 		return false, errors.New("invalid code")
 	}
-
 	return passwordReset.ExpiresAt.After(time.Now()), nil
 }
 

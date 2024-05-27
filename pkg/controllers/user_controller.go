@@ -106,7 +106,7 @@ func SignUp() gin.HandlerFunc {
 				return
 			}
 			if isVerified {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Email already exists"})
+				c.JSON(http.StatusConflict, gin.H{"error": "Email already exists"})
 				return
 			}
 		}
@@ -157,23 +157,23 @@ func Login() gin.HandlerFunc {
 
 		defer cancel()
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Password or Email is incorrect"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Password or Email is incorrect"})
 			return
 		}
 
 		passwordIsValid, msg := helper.VerifyPassword(*user.Password, *foundUser.Password)
 
 		if !passwordIsValid {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": msg})
 			return
 		}
 
 		if foundUser.Email == nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "User not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 			return
 		}
 		if !foundUser.IsVerified {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Email not verified"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Email not verified"})
 			return
 		}
 		token, refreshToken, _ := helper.GenerateAllTokens(*foundUser.Email, *foundUser.Name, *foundUser.Surname, *foundUser.UserType, foundUser.UserID)
@@ -181,7 +181,7 @@ func Login() gin.HandlerFunc {
 		err = userCollection.FindOne(ctx, bson.M{"userid": foundUser.UserID}).Decode(&foundUser)
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 			return
 		}
 
@@ -302,7 +302,7 @@ func RequestPasswordReset() gin.HandlerFunc {
 		}
 
 		if count == 0 {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Email does not exist"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Email does not exist"})
 			return
 		}
 
@@ -322,7 +322,7 @@ func ResetPassword() gin.HandlerFunc {
 		var requestBody struct {
 			Email       *string `json:"email" validate:"required,email"`
 			Code        string  `json:"code" validate:"required,min=6,max=6"`
-			NewPassword string  `json:"newpassword" validate:"required,min=6"`
+			NewPassword string  `json:"newPassword" validate:"required,min=6"`
 		}
 		if err := c.BindJSON(&requestBody); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

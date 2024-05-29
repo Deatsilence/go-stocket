@@ -339,3 +339,42 @@ func ResetPassword() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "Password successfully reset"})
 	}
 }
+
+func ChangePassword() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		var requestBody struct {
+			Email       *string `json:"email" validate:"required,email"`
+			OldPassword string  `json:"oldPassword" validate:"required,min=6"`
+			NewPassword string  `json:"newPassword" validate:"required,min=6"`
+		}
+		if err := c.BindJSON(&requestBody); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		var user models.User
+		err := userCollection.FindOne(ctx, bson.M{"email": *requestBody.Email}).Decode(&user)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+
+		passwordIsValid, msg := helper.VerifyPassword(requestBody.OldPassword, *user.Password)
+		if !passwordIsValid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": msg})
+			return
+		}
+
+		hashedPassword := helper.HashPassword(requestBody.NewPassword)
+		err = helper.UpdateUserPassword(*requestBody.Email, hashedPassword)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Password successfully changed"})
+	}
+}

@@ -99,7 +99,7 @@ func GetProducts() gin.HandlerFunc {
 
 		recordPerPage, recordPageErr := strconv.Atoi(c.Query("recordPerPage"))
 		if recordPageErr != nil || recordPerPage < 1 {
-			recordPerPage = 10
+			recordPerPage = 4
 		}
 
 		page, pageErr := strconv.Atoi(c.Query("page"))
@@ -107,10 +107,18 @@ func GetProducts() gin.HandlerFunc {
 			page = 1
 		}
 
+		prefix := c.Query("prefix")
+
 		startIndex := (page - 1) * recordPerPage
 
+		// Build the match stage of the pipeline with optional filters
+		matchStage := bson.D{}
+		if prefix != "" {
+			matchStage = append(matchStage, bson.E{Key: "barcode", Value: bson.D{{Key: "$regex", Value: "^" + prefix}, {Key: "$options", Value: "i"}}})
+		}
+
 		pipeline := mongo.Pipeline{
-			bson.D{{Key: "$match", Value: bson.D{{}}}}, // We can add filters here
+			bson.D{{Key: "$match", Value: matchStage}},
 			bson.D{{Key: "$group", Value: bson.D{
 				{Key: "_id", Value: "null"},
 				{Key: "totalCount", Value: bson.D{{Key: "$sum", Value: 1}}},

@@ -253,3 +253,34 @@ func UpdateSomePropertiesOfProduct() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "Product updated partially successfully"})
 	}
 }
+
+func SearchByBarcodePrefix() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		barcodePrefix := c.Param("barcode")
+
+		var products []models.Product
+
+		cursor, err := productCollection.Find(ctx, bson.M{"barcode": bson.M{"$regex": "^" + barcodePrefix}})
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error finding products"})
+			return
+		}
+		defer cursor.Close(ctx)
+
+		if err = cursor.All(ctx, &products); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error decoding products"})
+			return
+		}
+
+		if len(products) == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "No products found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, products)
+	}
+}

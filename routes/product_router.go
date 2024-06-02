@@ -13,6 +13,7 @@ func ProductRoutes(incomingRoutes *gin.Engine) {
 	incomingRoutes.DELETE("products/delete/:productid", controller.DeleteAProduct())
 	incomingRoutes.GET("products", controller.GetProducts())
 	incomingRoutes.GET("products/:productid", controller.GetProduct())
+	incomingRoutes.GET("products/search/:barcode", controller.SearchByBarcodePrefix())
 	incomingRoutes.PUT("products/update/:productid", controller.UpdateAProduct())
 	incomingRoutes.PATCH("products/updatepartially/:productid", controller.UpdateSomePropertiesOfProduct())
 }

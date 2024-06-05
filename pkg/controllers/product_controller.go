@@ -158,11 +158,24 @@ func GetProducts() gin.HandlerFunc {
 		}
 
 		if len(allProducts) > 0 {
-			c.JSON(http.StatusOK, allProducts[0])
-			return
+			// Calculate total pages
+			totalCount := allProducts[0]["totalCount"].(int32)
+			totalPages := (totalCount + int32(recordPerPage) - 1) / int32(recordPerPage)
+
+			// Return the response with pagination info
+			c.JSON(http.StatusOK, gin.H{
+				"productItems": allProducts[0]["productItems"],
+				"totalCount":   totalCount,
+				"totalPages":   totalPages,
+				"currentPage":  page,
+			})
 		} else {
-			c.JSON(http.StatusOK, gin.H{"productItems": []interface{}{}, "totalCount": 0})
-			return
+			c.JSON(http.StatusOK, gin.H{
+				"productItems": []interface{}{},
+				"totalCount":   0,
+				"totalPages":   0,
+				"currentPage":  page,
+			})
 		}
 	}
 }

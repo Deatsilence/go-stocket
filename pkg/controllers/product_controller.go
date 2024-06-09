@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -280,7 +281,7 @@ func SearchByBarcodePrefix() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
-		barcodePrefix := c.Param("barcode")
+		barcodePrefix := c.Query("barcode")
 
 		var products []models.Product
 
@@ -288,12 +289,14 @@ func SearchByBarcodePrefix() gin.HandlerFunc {
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error finding products"})
+			fmt.Println("Error finding products", err)
 			return
 		}
 		defer cursor.Close(ctx)
 
 		if err = cursor.All(ctx, &products); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error decoding products"})
+			fmt.Println("Error decoding products", err)
 			return
 		}
 

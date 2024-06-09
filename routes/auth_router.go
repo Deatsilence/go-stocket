@@ -7,8 +7,8 @@ import (
 )
 
 func AuthRoutes(incomingRoutes *gin.Engine) {
-	incomingRoutes.POST("users/verifyemail", controller.VerifyEmail())
-	incomingRoutes.POST("users/signup", controller.SignUp())
-	incomingRoutes.POST("users/login", controller.Login())
-	incomingRoutes.POST("users/logout", controller.Logout())
+	incomingRoutes.POST("/api/users/verifyemail", controller.VerifyEmail())
+	incomingRoutes.POST("/api/users/signup", controller.SignUp())
+	incomingRoutes.POST("/api/users/login", controller.Login())
+	incomingRoutes.POST("/api/users/logout", controller.Logout())
 }

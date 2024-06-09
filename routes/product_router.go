@@ -9,11 +9,11 @@ import (
 
 func ProductRoutes(incomingRoutes *gin.Engine) {
 	incomingRoutes.Use(middleware.Authenticate())
-	incomingRoutes.POST("products/add", controller.AddAProduct())
-	incomingRoutes.DELETE("products/delete/:productid", controller.DeleteAProduct())
-	incomingRoutes.GET("products", controller.GetProducts())
-	incomingRoutes.GET("products/:productid", controller.GetProduct())
-	incomingRoutes.GET("products/search/:barcode", controller.SearchByBarcodePrefix())
-	incomingRoutes.PUT("products/update/:productid", controller.UpdateAProduct())
-	incomingRoutes.PATCH("products/updatepartially/:productid", controller.UpdateSomePropertiesOfProduct())
+	incomingRoutes.POST("/api/products/add", controller.AddAProduct())
+	incomingRoutes.DELETE("/api/products/delete/:productid", controller.DeleteAProduct())
+	incomingRoutes.GET("/api/products", controller.GetProducts())
+	incomingRoutes.GET("/api/products/:productid", controller.GetProduct())
+	incomingRoutes.GET("/api/products/search", controller.SearchByBarcodePrefix())
+	incomingRoutes.PUT("/api/products/update/:productid", controller.UpdateAProduct())
+	incomingRoutes.PATCH("/api/products/updatepartially/:productid", controller.UpdateSomePropertiesOfProduct())
 }

@@ -7,7 +7,7 @@ import (
 )
 
 func PasswordRoutes(incomingRoutes *gin.Engine) {
-	incomingRoutes.POST("/passwordreset/request", controller.RequestPasswordReset())
-	incomingRoutes.POST("/passwordreset/confirm", controller.ResetPassword())
-	incomingRoutes.POST("/passwordreset/changepassword", controller.ChangePassword())
+	incomingRoutes.POST("/api/passwordreset/request", controller.RequestPasswordReset())
+	incomingRoutes.POST("/api/passwordreset/confirm", controller.ResetPassword())
+	incomingRoutes.POST("/api/passwordreset/changepassword", controller.ChangePassword())
 }
